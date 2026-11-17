@@ -62,3 +62,4 @@ Headless Monte Carlo night simulation runner. Simulates 30+ nights with differen
 ```bash
 node tools/sim_test.js 30
 ```
+

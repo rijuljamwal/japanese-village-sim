@@ -4,9 +4,9 @@
  * Headless simulation test runner for Japanese Village Simulation.
  * Runs N seeded nights at maximum speed to verify:
  * - Thief spawning after 21:00
- * - Robbery occurrences and door state transitions
- * - Guard patrol and detection chance (light cone & proximity)
- * - Chase mechanics (speed bursts, obstacles, cornering, stamina drain)
+ * - Sneaking to target house, robbery occurrences, and loot collection
+ * - Guard waypoint patrol & lantern cone detection
+ * - Real chase mechanics (speed bursts, obstacles, cornering, stamina drain)
  * - Chase outcome distribution: verifies capture rate is between 35% and 65%
  * - Detection of stuck agents or abnormal freezes
  */
@@ -14,7 +14,6 @@
 const fs = require('fs');
 const path = require('path');
 
-// Simple seeded pseudo-random number generator (Mulberry32)
 function createRng(seed) {
   let s = seed | 0;
   return function() {
@@ -25,93 +24,101 @@ function createRng(seed) {
   };
 }
 
-// Load config.js if exists, otherwise fallback to standard default values
 function loadConfig() {
   const configPath = path.join(__dirname, '..', 'src', 'config.js');
   if (fs.existsSync(configPath)) {
     try {
       const code = fs.readFileSync(configPath, 'utf8');
-      // Extract CONFIG object safely
       const sandbox = { window: {}, module: { exports: {} } };
       const fn = new Function('window', 'module', 'exports', code);
       fn(sandbox.window, sandbox.module, sandbox.module.exports);
       const cfg = sandbox.module.exports.CONFIG || sandbox.window.CONFIG;
       if (cfg) return cfg;
     } catch (e) {
-      console.warn('Note: Could not parse src/config.js, using default simulation config:', e.message);
+      console.warn('Note: Could not parse src/config.js:', e.message);
     }
   }
   return {
     time: { dayDurationMinutes: 12 },
     guards: {
       count: 3,
-      patrolSpeed: 24,
-      chaseSpeed: 52,
+      patrolSpeed: 28,
+      chaseSpeed: 58,
       stamina: 100,
-      staminaDrainRate: 4.5,
-      detectionConeAngle: 45,
-      detectionDistance: 70,
-      detectionChancePerSec: 0.65,
-      proximityDetectionDist: 18
+      staminaDrainRate: 3.5,
+      detectionConeAngle: 50,
+      detectionDistance: 75,
+      detectionChancePerSec: 0.70,
+      proximityDetectionDist: 20,
+      catchDistance: 16
     },
     thieves: {
       maxActive: 2,
       spawnMinHour: 21,
       spawnMaxHour: 2,
       sneakSpeed: 18,
-      runSpeed: 50,
+      runSpeed: 48,
       stamina: 100,
-      staminaDrainRate: 4.0,
-      speedBurstChance: 0.25,
-      shortcutChance: 0.35,
+      staminaDrainRate: 4.2,
+      speedBurstChance: 0.20,
+      shortcutChance: 0.30,
       stumbleChance: 0.15
     },
     chase: {
-      catchDistance: 12,
-      corneringBonus: 0.20,
       targetCaptureRateMin: 0.35,
       targetCaptureRateMax: 0.65
     }
   };
 }
 
-// Headless single-night simulation
 function simulateNight(seed, config) {
   const rng = createRng(seed);
   const events = [];
   
-  // Night runs from 19:00 to 05:00 (10 in-game hours = 300 simulation seconds at 12min day)
+  // Night runs 10 in-game hours
   const nightDurationSec = (10 / 24) * (config.time.dayDurationMinutes * 60);
   
-  // 3-4 Guards
+  // Village waypoints: Guardhouse (42), Cottage 1 (110), Campfire (236), Market (334), Bridge (418)
+  const waypointRoutes = [
+    [42, 110, 236, 110],
+    [236, 334, 418, 334],
+    [110, 236, 352, 236],
+    [42, 160, 280, 418]
+  ];
+
   const numGuards = config.guards.count || 3;
   const guards = [];
   for (let g = 0; g < numGuards; g++) {
+    const route = waypointRoutes[g % waypointRoutes.length];
     guards.push({
       id: g + 1,
-      x: 40 + g * 110,
+      x: route[0],
+      route,
+      targetWpIdx: 1,
+      targetX: route[1],
+      facingRight: true,
       stamina: config.guards.stamina,
-      state: 'patrol',
-      targetWaypoint: (g * 2) % 6
+      state: 'patrol'
     });
   }
 
-  // 1-2 Thieves spawn between 21:00 and 02:00
-  const thievesToSpawn = 1 + (rng() > 0.4 ? 1 : 0);
+  const houseDoors = [110, 238, 352]; // Cottage 1, Manor, Cottage 3
+  const thievesToSpawn = 1 + (rng() > 0.45 ? 1 : 0);
   const thiefSpawnTimes = [];
   for (let t = 0; t < thievesToSpawn; t++) {
-    // 21:00 is 2 hours into night; 02:00 is 7 hours into night
     const spawnSec = (2 / 10 * nightDurationSec) + rng() * (5 / 10 * nightDurationSec);
+    const side = rng() > 0.5 ? 'left' : 'right';
+    const targetHouseX = houseDoors[Math.floor(rng() * houseDoors.length)];
     thiefSpawnTimes.push({
       spawnSec,
-      side: rng() > 0.5 ? 'left' : 'right',
-      targetHouse: 1 + Math.floor(rng() * 4),
+      side,
+      targetHouseX,
       spawned: false,
       active: false,
       robbed: false,
       captured: false,
       escaped: false,
-      x: 0,
+      x: side === 'left' ? 5 : 475,
       stamina: config.thieves.stamina,
       state: 'waiting',
       chaseTime: 0
@@ -124,70 +131,116 @@ function simulateNight(seed, config) {
   let totalEscapes = 0;
   let chaseDurations = [];
 
-  const dt = 0.5; // step half-second
+  const dt = 0.4; // 0.4s simulation step
   for (let t = 0; t < nightDurationSec; t += dt) {
-    // Check spawns
+    // 1. Update Guards Patrol Movement
+    for (const guard of guards) {
+      if (guard.state === 'patrol') {
+        const dx = guard.targetX - guard.x;
+        guard.facingRight = dx >= 0;
+        const step = config.guards.patrolSpeed * dt;
+        if (Math.abs(dx) <= step) {
+          guard.x = guard.targetX;
+          guard.targetWpIdx = (guard.targetWpIdx + 1) % guard.route.length;
+          guard.targetX = guard.route[guard.targetWpIdx];
+        } else {
+          guard.x += Math.sign(dx) * step;
+        }
+      }
+    }
+
+    // 2. Update Thieves
     for (const thief of thiefSpawnTimes) {
       if (!thief.spawned && t >= thief.spawnSec) {
         thief.spawned = true;
         thief.active = true;
-        thief.x = thief.side === 'left' ? 10 : 470;
+        thief.x = thief.side === 'left' ? 5 : 475;
         thief.state = 'sneak';
         events.push({ time: t, type: 'thief_spawn', side: thief.side });
       }
 
       if (!thief.active) continue;
 
-      // Thief logic
       if (thief.state === 'sneak') {
-        const targetHouseX = thief.targetHouse * 95;
-        const dir = targetHouseX > thief.x ? 1 : -1;
-        thief.x += dir * config.thieves.sneakSpeed * dt;
+        const dx = thief.targetHouseX - thief.x;
+        thief.facingRight = dx >= 0;
+        const step = config.thieves.sneakSpeed * dt;
         
-        // Arrived at house
-        if (Math.abs(thief.x - targetHouseX) < 10) {
+        if (Math.abs(dx) <= step) {
+          thief.x = thief.targetHouseX;
           thief.state = 'rob';
-          thief.robTimer = 6; // 6 seconds inside house
+          thief.robTimer = config.thieves.robberyDurationSec || 5.0;
+        } else {
+          thief.x += Math.sign(dx) * step;
+        }
+
+        // Detection while sneaking approaching target
+        if (Math.abs(thief.x - (thief.side === 'left' ? 5 : 475)) > 30) {
+          for (const guard of guards) {
+            const dist = Math.abs(guard.x - thief.x);
+            const inCone = (guard.facingRight ? (thief.x > guard.x) : (thief.x < guard.x)) && dist <= config.guards.detectionDistance;
+            const inProximity = dist <= config.guards.proximityDetectionDist;
+            if (inProximity || (inCone && rng() < (config.guards.detectionChancePerSec * dt))) {
+              thief.state = 'chase';
+              thief.escapeTargetX = thief.x < 240 ? 0 : 480;
+              totalSpotted++;
+              events.push({ time: t, type: 'thief_spotted', guard: guard.id });
+              break;
+            }
+          }
         }
       } else if (thief.state === 'rob') {
         thief.robTimer -= dt;
         if (thief.robTimer <= 0) {
-          thief.state = 'loot';
+          thief.state = 'flee_unspotted';
           thief.robbed = true;
           totalRobberies++;
-          events.push({ time: t, type: 'robbery_complete', house: thief.targetHouse });
-          thief.state = 'flee_unspotted';
           thief.escapeTargetX = thief.side === 'left' ? 0 : 480;
+          events.push({ time: t, type: 'robbery_complete' });
         }
       } else if (thief.state === 'flee_unspotted') {
-        const dir = thief.escapeTargetX > thief.x ? 1 : -1;
-        thief.x += dir * config.thieves.sneakSpeed * dt;
+        const dx = thief.escapeTargetX - thief.x;
+        thief.x += Math.sign(dx) * config.thieves.sneakSpeed * dt;
+        
         if (Math.abs(thief.x - thief.escapeTargetX) < 15) {
           thief.active = false;
           thief.escaped = true;
           totalEscapes++;
           events.push({ time: t, type: 'thief_escaped_unspotted' });
+          continue;
+        }
+
+        // Guard spotting fleeing thief
+        for (const guard of guards) {
+          const dist = Math.abs(guard.x - thief.x);
+          const inCone = (guard.facingRight ? (thief.x > guard.x) : (thief.x < guard.x)) && dist <= config.guards.detectionDistance;
+          const inProximity = dist <= config.guards.proximityDetectionDist;
+          if (inProximity || (inCone && rng() < (config.guards.detectionChancePerSec * dt))) {
+            thief.state = 'chase';
+            totalSpotted++;
+            events.push({ time: t, type: 'thief_spotted_fleeing', guard: guard.id });
+            break;
+          }
         }
       } else if (thief.state === 'chase') {
         thief.chaseTime += dt;
         thief.stamina = Math.max(0, thief.stamina - config.thieves.staminaDrainRate * dt);
         
-        // Speed calculation with random bursts and shortcut
         let thiefSpeed = config.thieves.runSpeed * (0.7 + 0.3 * (thief.stamina / 100));
-        if (rng() < config.thieves.speedBurstChance) thiefSpeed += 12;
+        if (rng() < config.thieves.speedBurstChance) thiefSpeed += 10;
         if (rng() < config.thieves.shortcutChance) {
           if (rng() < config.thieves.stumbleChance) {
-            thiefSpeed -= 15; // Stumbled over fence
+            thiefSpeed -= 14; // Stumbled over fence
           } else {
-            thiefSpeed += 10; // Clean roof shortcut
+            thiefSpeed += 8;  // Clean roof shortcut
           }
         }
         
         const dir = thief.escapeTargetX > thief.x ? 1 : -1;
         thief.x += dir * thiefSpeed * dt;
 
-        // Check if reached escape boundary
-        if (thief.x <= 5 || thief.x >= 475) {
+        // Escape condition
+        if (thief.x <= 0 || thief.x >= 480) {
           thief.active = false;
           thief.escaped = true;
           totalEscapes++;
@@ -196,19 +249,19 @@ function simulateNight(seed, config) {
           continue;
         }
 
-        // Check chasing guards
+        // Pursuing guards
         let captured = false;
         let activeChasers = 0;
         for (const guard of guards) {
           guard.stamina = Math.max(0, guard.stamina - config.guards.staminaDrainRate * dt);
           let guardSpeed = config.guards.chaseSpeed * (0.65 + 0.35 * (guard.stamina / 100));
-          if (guard.stamina > 10) activeChasers++;
+          if (guard.stamina > 5) activeChasers++;
           
           const gDir = thief.x > guard.x ? 1 : -1;
           guard.x += gDir * guardSpeed * dt;
 
-          // Catch condition
-          if (Math.abs(guard.x - thief.x) <= config.chase.catchDistance) {
+          const catchDist = config.guards.catchDistance || 16;
+          if (Math.abs(guard.x - thief.x) <= catchDist) {
             captured = true;
             break;
           }
@@ -221,29 +274,11 @@ function simulateNight(seed, config) {
           chaseDurations.push(thief.chaseTime);
           events.push({ time: t, type: 'thief_captured', duration: thief.chaseTime });
         } else if (activeChasers === 0) {
-          // All guards exhausted
           thief.active = false;
           thief.escaped = true;
           totalEscapes++;
           chaseDurations.push(thief.chaseTime);
           events.push({ time: t, type: 'thief_escaped_guards_tired' });
-        }
-      }
-
-      // Detection check (if thief is not yet chased or captured)
-      if (thief.active && thief.state !== 'chase' && thief.state !== 'captured' && thief.state !== 'escaped') {
-        for (const guard of guards) {
-          const dist = Math.abs(guard.x - thief.x);
-          const inProximity = dist <= config.guards.proximityDetectionDist;
-          const inCone = dist <= config.guards.detectionDistance;
-          
-          if (inProximity || (inCone && rng() < (config.guards.detectionChancePerSec * dt))) {
-            thief.state = 'chase';
-            thief.escapeTargetX = thief.x < 240 ? 0 : 480;
-            totalSpotted++;
-            events.push({ time: t, type: 'thief_spotted', guard: guard.id });
-            break;
-          }
         }
       }
     }
@@ -288,8 +323,8 @@ function runTestSuite(numNights = 30, baseSeed = 1001) {
   const captureRate = finishedChases > 0 ? (totalCaptures / finishedChases) : 0;
   const avgChaseSec = allChases.length > 0 ? (allChases.reduce((a, b) => a + b, 0) / allChases.length) : 0;
   
-  const minTarget = config.chase.targetCaptureRateMin || 0.35;
-  const maxTarget = config.chase.targetCaptureRateMax || 0.65;
+  const minTarget = config.chase ? config.chase.targetCaptureRateMin : 0.35;
+  const maxTarget = config.chase ? config.chase.targetCaptureRateMax : 0.65;
   const passed = captureRate >= minTarget && captureRate <= maxTarget;
 
   console.log(`- Nights Simulated:    ${numNights}`);
