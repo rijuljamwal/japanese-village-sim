@@ -38,3 +38,4 @@ Use this every time you create or change any art.
 Open the contact sheet. Check: same pixel scale as others, same outline
 style, same palette, no blur, no stray pixels, no semi-transparent edges, feet
 aligned, character readable at 1x size.
+

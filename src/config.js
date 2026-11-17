@@ -1,16 +1,17 @@
 /**
  * src/config.js
  * Master configuration file for Japanese Pixel-Art Village Simulation.
- * ALL tunable numbers and gameplay parameters are centralized here per project rules.
+ * Native Full HD Resolution: 1920x1080
+ * Complete physics, collision obstacles, nav trails, and real-world interactions.
  */
 
 const CONFIG = {
   // Display & Rendering
   display: {
-    baseWidth: 480,
-    baseHeight: 270,
-    scale: 4,               // Scaled 4x to 1920x1080 on screen
-    pixelated: true
+    baseWidth: 1920,
+    baseHeight: 1080,
+    scale: 1,
+    pixelated: false
   },
 
   // Time & Cycle
@@ -23,96 +24,132 @@ const CONFIG = {
       dusk: { start: 17.0, end: 19.0, name: "Dusk" },
       night: { start: 19.0, end: 5.0, name: "Night" }
     },
-    speeds: [0, 1, 2, 4],   // Pause (0x), 1x, 2x, 4x
+    speeds: [0, 1, 2, 4],
     defaultSpeed: 1
   },
 
   // Lighting & Night Atmos
   lighting: {
-    crossfadeDurationMinutes: 60, // Crossfade over 60 in-game minutes
-    nightOverlayColor: "rgba(12, 18, 42, 0.72)",
-    lanternGlowRadius: 36,
-    windowGlowRadius: 28,
-    campfireGlowRadius: 46,
-    forgeGlowRadius: 40,
-    guardLightConeAngle: 45,       // degrees
-    guardLightConeLength: 68       // pixels
+    crossfadeDurationMinutes: 60,
+    lanternGlowRadius: 120,
+    windowGlowRadius: 100,
+    campfireGlowRadius: 180,
+    forgeGlowRadius: 160,
+    guardLightConeAngle: 45,
+    guardLightConeLength: 260
   },
 
-  // Village Layout & Coordinates (Base 480x270 diorama)
-  world: {
-    groundLineY: 218,             // Base walking baseline for characters
-    campfirePos: { x: 236, y: 154 },
-    forgePos: { x: 74, y: 190 },
-    marketPos: { x: 334, y: 206 },
-    bridgePos: { x: 418, y: 148 },
-    gardenPos: { x: 62, y: 122 },
-    guardhousePos: { x: 42, y: 195 },
-    houses: [
-      { id: 1, name: "West Cottage", doorX: 110, doorY: 96, x: 90, y: 80, robbed: false },
-      { id: 2, name: "North Manor", doorX: 238, doorY: 82, x: 220, y: 64, robbed: false },
-      { id: 3, name: "East Cottage", doorX: 352, doorY: 104, x: 334, y: 88, robbed: false }
-    ],
-    escapePoints: [
-      { id: "west_exit", x: -16, y: 218 },
-      { id: "east_bridge_exit", x: 496, y: 148 },
-      { id: "river_exit", x: 490, y: 230 }
-    ]
-  },
+  // Physical Obstacles (AABB boxes that characters, guards, and thieves physically collide with)
+  obstacles: [
+    // 1. West Cottage (Upper Left)
+    { id: "house_west", x: 230, y: 150, w: 390, h: 460 },
+    // 2. North Manor (Upper Center)
+    { id: "house_north", x: 690, y: 110, w: 460, h: 460 },
+    // 3. East Cottage (Upper Right)
+    { id: "house_east", x: 1180, y: 180, w: 390, h: 460 },
+    // 4. Fenced Garden (Middle Left)
+    { id: "garden_fence", x: 75, y: 480, w: 350, h: 280 },
+    // 5. Blacksmith Forge (Bottom Left)
+    { id: "forge_building", x: 80, y: 760, w: 480, h: 300 },
+    // 6. Market Stall (Bottom Right)
+    { id: "market_stall", x: 1070, y: 770, w: 380, h: 290 },
+    // 7. Central Campfire & Feast Table (Plaza Center)
+    { id: "campfire_ring", x: 830, y: 550, w: 140, h: 120 },
+    { id: "feast_table", x: 840, y: 670, w: 120, h: 75 },
+    // 8. Frozen River Bank Top (Above Wooden Bridge)
+    { id: "river_top", x: 1500, y: 0, w: 420, h: 520 },
+    // 9. Frozen River Bank Bottom (Below Wooden Bridge)
+    { id: "river_bottom", x: 1510, y: 680, w: 410, h: 400 }
+  ],
 
-  // Villagers (Daytime Life)
+  // Trail Network Navigation Nodes (along the cleared footprint paths)
+  navNodes: [
+    { id: "plaza", x: 910, y: 640, neighbors: ["west_trail", "north_trail", "east_trail", "south_crossroads", "bench_left", "bench_right", "bridge_west"] },
+    { id: "bench_left", x: 760, y: 670, neighbors: ["plaza", "west_trail"] },
+    { id: "bench_right", x: 1020, y: 670, neighbors: ["plaza", "east_trail"] },
+    { id: "west_trail", x: 618, y: 525, neighbors: ["plaza", "west_door", "south_crossroads", "garden_gate", "bench_left"] },
+    { id: "west_door", x: 442, y: 480, neighbors: ["west_trail"] },
+    { id: "north_trail", x: 918, y: 480, neighbors: ["plaza", "north_door"] },
+    { id: "north_door", x: 926, y: 420, neighbors: ["north_trail"] },
+    { id: "east_trail", x: 1256, y: 540, neighbors: ["plaza", "east_door", "bridge_west", "bench_right"] },
+    { id: "east_door", x: 1350, y: 505, neighbors: ["east_trail"] },
+    { id: "south_crossroads", x: 890, y: 860, neighbors: ["plaza", "forge_plaza", "market_plaza", "west_trail"] },
+    { id: "forge_plaza", x: 628, y: 880, neighbors: ["south_crossroads", "forge_anvil"] },
+    { id: "forge_anvil", x: 390, y: 880, neighbors: ["forge_plaza"] },
+    { id: "market_plaza", x: 1030, y: 880, neighbors: ["south_crossroads"] },
+    { id: "garden_gate", x: 425, y: 600, neighbors: ["west_trail"] },
+    { id: "bridge_west", x: 1460, y: 600, neighbors: ["plaza", "east_trail", "bridge_east"] },
+    { id: "bridge_east", x: 1800, y: 600, neighbors: ["bridge_west"] }
+  ],
+
+  // Houses metadata
+  houses: [
+    { id: 1, name: "West Cottage", doorX: 442, doorY: 480, windowX: 442, windowY: 430, robbed: false },
+    { id: 2, name: "North Manor", doorX: 926, doorY: 420, windowX: 926, windowY: 370, robbed: false },
+    { id: 3, name: "East Cottage", doorX: 1350, doorY: 505, windowX: 1350, windowY: 450, robbed: false }
+  ],
+
+  // Villagers (Full HD Settings)
   villagers: {
     count: 7,
-    walkSpeed: 22,               // pixels per second at 1x
-    chatterDurationSeconds: 4.0,  // seconds chatting when meeting
-    chatterChance: 0.45,
-    wanderRadius: 90,
-    pauseMinSec: 2.0,
-    pauseMaxSec: 6.0
+    spriteWidth: 80,
+    spriteHeight: 140,
+    collisionRadius: 28,
+    walkSpeed: 72,               // pixels per second in 1920x1080
+    chatterDurationSeconds: 4.5,
+    chatterChance: 0.65,
+    repulsionStrength: 150.0,    // Solid push force separating agents on collision
+    avoidanceDistance: 70.0      // Distance to start steering aside
   },
 
-  // Guards (Night Life)
+  // Night Guards (Full HD Settings)
   guards: {
-    count: 4,
+    count: 3,
+    spriteWidth: 80,
+    spriteHeight: 140,
     patrolSpeed: 28,
-    chaseSpeed: 60,
+    chaseSpeed: 50,
     stamina: 100,
-    staminaDrainRate: 3.5,        // points per second while running
-    detectionConeAngle: 50,       // degrees
-    detectionDistance: 85,        // pixels
-    detectionChancePerSec: 0.70,  // random chance per second in cone
-    proximityDetectionDist: 22,   // detected regardless of direction
-    catchDistance: 16,            // distance to grab thief
-    escortSpeed: 20,
-    jailedDurationHours: 6.0      // hours kept in cage until release
+    staminaDrainRate: 3.5,
+    detectionConeAngle: 50,
+    detectionDistance: 75,
+    detectionChancePerSec: 0.70,
+    proximityDetectionDist: 20,
+    runSpeed: 145,
+    lanternLightRadius: 260,
+    catchDistance: 16,
+    shoutDurationSec: 2.5
   },
 
-  // Thieves (Night Robberies)
+  // Thieves (Full HD Settings)
   thieves: {
+    spriteWidth: 80,
+    spriteHeight: 140,
     maxActive: 2,
-    spawnMinHour: 21.0,           // spawns after 21:00
-    spawnMaxHour: 2.5,            // until 02:30
+    spawnMinHour: 21,
+    spawnMaxHour: 2,
     sneakSpeed: 18,
-    runSpeed: 48,
+    runSpeed: 52,
     stamina: 100,
-    staminaDrainRate: 4.5,
-    speedBurstChance: 0.18,
-    speedBurstAmount: 8,
-    shortcutChance: 0.30,
-    stumbleChance: 0.18,
+    staminaDrainRate: 4.0,
+    speedBurstChance: 0.25,
+    shortcutChance: 0.35,
+    stumbleChance: 0.15,
     robberyDurationSec: 5.0,
-    secondRobberyProbability: 0.25
+    sprintSpeed: 140,
+    robDurationSec: 4.0,
+    spawnChancePerHour: 0.45
   },
 
-  // Simulation Tuning Targets
+  // Chase Balance
   chase: {
     targetCaptureRateMin: 0.35,
-    targetCaptureRateMax: 0.65,
-    corneringBonus: 0.20
+    targetCaptureRateMax: 0.65
   }
 };
 
-// Export for Node testing or browser
 if (typeof module !== "undefined" && module.exports) {
   module.exports = { CONFIG };
+} else if (typeof window !== "undefined") {
+  window.CONFIG = CONFIG;
 }

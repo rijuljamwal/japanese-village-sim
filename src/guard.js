@@ -1,162 +1,200 @@
 /**
  * src/guard.js
- * Night guard agent behaviors and patrol state machine:
- * - States: stand_watch, patrol, alert, shout, chase, catch, escort, frustrated, return_to_post
- * - Emerges from guardhouse at dusk (19:00), patrols waypoints with lantern light cone
- * - Spotting checks: inside lantern cone or proximity
- * - Pursues thief, loses stamina; escorts captured thief to cage
+ * Night Guard agent with Full HD (80x140) rendering,
+ * lantern vision cone, patrol routing, pursuit physics, physical tackle & escort.
  */
 
 class Guard {
-  constructor(id, name, waypoints, startX, startY) {
+  constructor(id, name, patrolRouteNodes, startX, startY) {
     this.id = id;
     this.name = name;
-    this.waypoints = waypoints;
-    this.currentWaypointIdx = 0;
+    this.patrolRouteNodes = patrolRouteNodes;
+    this.patrolIndex = 0;
     
     this.x = startX;
     this.y = startY;
-    this.targetX = startX;
+    this.vx = 0;
+    this.vy = 0;
+    this.radius = 28;
     this.facingRight = true;
     
-    this.state = "inactive"; // "inactive", "patrol", "stand_watch", "alert", "shout", "chase", "catch", "escort", "frustrated"
-    this.stamina = CONFIG.guards.stamina;
+    this.state = "inactive"; // "inactive", "patrol", "alert", "chase", "catch", "escort", "frustrated"
     this.stateTimer = 0;
     this.animTimer = 0;
     this.currentFrame = 0;
+    this.footstepTimer = 0;
     
-    this.chasingTarget = null; // Reference to thief object
-    this.escortingTarget = null;
-    this.alertBubble = null;
+    this.path = [];
+    this.targetThief = null;
+    this.speechBubble = null;
+    this.lightConeAngle = 0; // Direction of lantern cone
+    this.speed = CONFIG.guards.patrolSpeed;
   }
 
-  update(dt, currentHour, isNight, activeThieves) {
+  update(dt, currentHour, isNight, allThieves) {
     this.animTimer += dt;
-    if (this.alertBubble) {
-      this.alertBubble.timer -= dt;
-      if (this.alertBubble.timer <= 0) this.alertBubble = null;
+    this.footstepTimer += dt;
+
+    if (this.speechBubble) {
+      this.speechBubble.timer -= dt;
+      if (this.speechBubble.timer <= 0) this.speechBubble = null;
     }
 
-    // Active hours: 19:00 - 05:00
+    // Guard schedule: Active strictly during night (19:00 - 05:00)
     if (!isNight) {
-      if (this.state !== "inactive") {
-        this.state = "inactive";
-        this.x = CONFIG.world.guardhousePos.x;
-        this.y = CONFIG.world.groundLineY;
-      }
+      this.state = "inactive";
+      this.targetThief = null;
       return;
-    } else {
-      if (this.state === "inactive") {
-        this.state = "patrol";
-        this.x = CONFIG.world.guardhousePos.x;
-        this.targetX = this.waypoints[this.currentWaypointIdx];
-        this.stamina = CONFIG.guards.stamina;
+    }
+
+    if (this.state === "inactive") {
+      this.state = "patrol";
+      this.patrolIndex = 0;
+      this.assignNextPatrolNode();
+    }
+
+    // Check vision cone against active thieves
+    if (this.state === "patrol" || this.state === "alert") {
+      for (const thief of allThieves) {
+        if (thief.state === "escaped" || thief.state === "captured") continue;
+        if (this.canSeeThief(thief)) {
+          this.triggerAlert(thief);
+          break;
+        }
       }
     }
 
     // State machine
-    if (this.state === "stand_watch") {
-      this.stateTimer -= dt;
-      if (this.stateTimer <= 0) {
-        this.state = "patrol";
-        this.currentWaypointIdx = (this.currentWaypointIdx + 1) % this.waypoints.length;
-        this.targetX = this.waypoints[this.currentWaypointIdx];
-      }
-    } else if (this.state === "patrol") {
-      const dx = this.targetX - this.x;
-      this.facingRight = dx >= 0;
-      const step = CONFIG.guards.patrolSpeed * dt;
-      
-      if (Math.abs(dx) <= step) {
-        this.x = this.targetX;
-        this.state = "stand_watch";
-        this.stateTimer = 3.0 + Math.random() * 4.0;
-      } else {
-        this.x += Math.sign(dx) * step;
-      }
-
-      // Detection check against active thieves
-      for (const thief of activeThieves) {
-        if (thief.active && thief.state !== "captured" && thief.state !== "escaped") {
-          const dist = Math.abs(thief.x - this.x);
-          const inCone = (this.facingRight ? (thief.x > this.x) : (thief.x < this.x)) && (dist <= CONFIG.guards.detectionDistance);
-          const inProximity = dist <= CONFIG.guards.proximityDetectionDist;
-
-          if (inProximity || (inCone && Math.random() < (CONFIG.guards.detectionChancePerSec * dt))) {
-            this.triggerAlert(thief);
-            break;
-          }
-        }
-      }
-    } else if (this.state === "alert") {
+    if (this.state === "alert") {
+      this.vx = 0;
+      this.vy = 0;
       this.stateTimer -= dt;
       if (this.stateTimer <= 0) {
         this.state = "chase";
+        this.speechBubble = { text: "HALT! IN THE NAME OF THE VILLAGE!", timer: 3.0 };
       }
     } else if (this.state === "chase") {
-      if (!this.chasingTarget || !this.chasingTarget.active || this.chasingTarget.escaped) {
+      if (!this.targetThief || this.targetThief.state === "escaped") {
         this.state = "frustrated";
-        this.stateTimer = 3.5;
-        this.chasingTarget = null;
-        return;
-      }
+        this.stateTimer = 3.0;
+        this.speechBubble = { text: "Curse it! The thief slipped away!", timer: 3.0 };
+        this.targetThief = null;
+      } else {
+        const dx = this.targetThief.x - this.x;
+        const dy = this.targetThief.y - this.y;
+        const dist = Math.hypot(dx, dy);
 
-      // Stamina drain
-      this.stamina = Math.max(0, this.stamina - CONFIG.guards.staminaDrainRate * dt);
-      const speedFactor = 0.65 + 0.35 * (this.stamina / 100);
-      const chaseSpeed = CONFIG.guards.chaseSpeed * speedFactor;
+        this.facingRight = dx >= 0;
+        this.lightConeAngle = Math.atan2(dy, dx);
 
-      const dx = this.chasingTarget.x - this.x;
-      this.facingRight = dx >= 0;
-      this.x += Math.sign(dx) * chaseSpeed * dt;
+        if (dist <= CONFIG.guards.catchDistance) {
+          // Physical tackle and capture!
+          this.catchThief(this.targetThief);
+        } else {
+          // Sprint towards thief
+          const dirX = dx / dist;
+          const dirY = dy / dist;
+          this.vx = dirX * CONFIG.guards.runSpeed;
+          this.vy = dirY * CONFIG.guards.runSpeed;
 
-      // Catch check
-      if (Math.abs(this.x - this.chasingTarget.x) <= CONFIG.guards.catchDistance) {
-        this.state = "catch";
-        this.stateTimer = 1.2;
-        this.chasingTarget.triggerCaptured(this);
-        world.logEvent(`${this.name} tackled and caught Thief #${this.chasingTarget.id}!`);
-      } else if (this.stamina <= 5) {
-        // Guard drops out exhausted
-        this.state = "frustrated";
-        this.stateTimer = 4.0;
-        this.chasingTarget = null;
+          this.x += this.vx * dt;
+          this.y += this.vy * dt;
+
+          if (this.footstepTimer >= 0.28) {
+            this.footstepTimer = 0;
+            world.addFootprint(this.x, this.y, Math.atan2(dy, dx));
+          }
+        }
       }
     } else if (this.state === "catch") {
+      this.vx = 0;
+      this.vy = 0;
       this.stateTimer -= dt;
-      if (this.stateTimer <= 0 && this.chasingTarget) {
+      if (this.stateTimer <= 0) {
         this.state = "escort";
-        this.escortingTarget = this.chasingTarget;
-        this.targetX = CONFIG.world.guardhousePos.x;
+        this.speechBubble = { text: "Caught red-handed! Off to the cage!", timer: 4.0 };
+        // Lead to plaza cage
+        this.path = world.findPath(world.getNearestNavNode(this.x, this.y), "plaza");
       }
     } else if (this.state === "escort") {
-      const dx = this.targetX - this.x;
-      this.facingRight = dx >= 0;
-      const step = CONFIG.guards.escortSpeed * dt;
-      
-      if (Math.abs(dx) <= step) {
-        this.x = this.targetX;
-        if (this.escortingTarget) {
-          world.jailThief(this.escortingTarget);
-          this.escortingTarget = null;
+      if (this.path.length > 0) {
+        const nextNode = world.navNodes.get(this.path[0]);
+        if (nextNode) {
+          const dx = nextNode.x - this.x;
+          const dy = nextNode.y - this.y;
+          const dist = Math.hypot(dx, dy);
+
+          if (dist < 15) {
+            this.path.shift();
+          } else {
+            this.facingRight = dx >= 0;
+            this.lightConeAngle = Math.atan2(dy, dx);
+            this.vx = (dx / dist) * CONFIG.guards.patrolSpeed;
+            this.vy = (dy / dist) * CONFIG.guards.patrolSpeed;
+
+            this.x += this.vx * dt;
+            this.y += this.vy * dt;
+
+            // Thief is tethered and pulled behind guard
+            if (this.targetThief) {
+              const dragX = this.x - (this.facingRight ? 45 : -45);
+              const dragY = this.y;
+              this.targetThief.x += (dragX - this.targetThief.x) * 0.15;
+              this.targetThief.y += (dragY - this.targetThief.y) * 0.15;
+            }
+          }
         }
-        this.state = "stand_watch";
-        this.stateTimer = 4.0;
       } else {
-        this.x += Math.sign(dx) * step;
-        if (this.escortingTarget) {
-          this.escortingTarget.x = this.x - (this.facingRight ? 16 : -16);
+        // Reached cage -> lock thief up
+        if (this.targetThief) {
+          world.jailThief(this.targetThief);
+          this.targetThief = null;
         }
+        this.state = "patrol";
+        this.assignNextPatrolNode();
       }
     } else if (this.state === "frustrated") {
+      this.vx = 0;
+      this.vy = 0;
       this.stateTimer -= dt;
       if (this.stateTimer <= 0) {
         this.state = "patrol";
-        this.stamina = CONFIG.guards.stamina;
+        this.assignNextPatrolNode();
+      }
+    } else if (this.state === "patrol") {
+      if (this.path.length > 0) {
+        const nextNode = world.navNodes.get(this.path[0]);
+        if (nextNode) {
+          const dx = nextNode.x - this.x;
+          const dy = nextNode.y - this.y;
+          const dist = Math.hypot(dx, dy);
+
+          if (dist < 15) {
+            this.path.shift();
+          } else {
+            this.facingRight = dx >= 0;
+            this.lightConeAngle = Math.atan2(dy, dx);
+            this.vx = (dx / dist) * CONFIG.guards.patrolSpeed;
+            this.vy = (dy / dist) * CONFIG.guards.patrolSpeed;
+
+            this.x += this.vx * dt;
+            this.y += this.vy * dt;
+
+            if (this.footstepTimer >= 0.38) {
+              this.footstepTimer = 0;
+              world.addFootprint(this.x, this.y, Math.atan2(dy, dx));
+            }
+          }
+        }
+      } else {
+        this.assignNextPatrolNode();
       }
     }
 
-    // Animation frame tick
+    // Solid obstacle collision resolution against houses and fences
+    world.resolveObstacleCollision(this, this.radius);
+
+    // Animation frame timing
     const frameRate = (this.state === "chase" || this.state === "patrol") ? 0.12 : 0.22;
     if (this.animTimer >= frameRate) {
       this.animTimer = 0;
@@ -164,13 +202,48 @@ class Guard {
     }
   }
 
+  assignNextPatrolNode() {
+    this.patrolIndex = (this.patrolIndex + 1) % this.patrolRouteNodes.length;
+    const targetNode = this.patrolRouteNodes[this.patrolIndex];
+    const startNode = world.getNearestNavNode(this.x, this.y);
+    this.path = world.findPath(startNode, targetNode);
+  }
+
+  canSeeThief(thief) {
+    if (thief.state === "hide") return false;
+
+    const dx = thief.x - this.x;
+    const dy = thief.y - (this.y - 40); // Lantern height
+    const dist = Math.hypot(dx, dy);
+
+    if (dist > CONFIG.lighting.guardLightConeLength) return false;
+
+    // Check angle relative to facing direction
+    const angleToThief = Math.atan2(dy, dx);
+    const facingAngle = this.facingRight ? 0 : Math.PI;
+    let angleDiff = Math.abs(angleToThief - facingAngle);
+    if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
+
+    const halfCone = (CONFIG.lighting.guardLightConeAngle * Math.PI) / 180 / 2;
+    return angleDiff <= halfCone;
+  }
+
   triggerAlert(thief) {
     this.state = "alert";
-    this.stateTimer = 0.8; // pause with exclamation mark
-    this.chasingTarget = thief;
-    this.alertBubble = { icon: "❗", timer: 1.5 };
-    world.logEvent(`${this.name} spotted a thief near x=${Math.round(this.x)}!`);
-    thief.triggerChase();
+    this.stateTimer = 1.0;
+    this.targetThief = thief;
+    this.speechBubble = { text: "SHHH! WHO GOES THERE?!", timer: 2.0 };
+    thief.onSpottedByGuard(this);
+    world.logEvent(`${this.name} spotted a suspicious prowler near ${thief.targetHouseId ? 'Cottage #' + thief.targetHouseId : 'the plaza'}!`);
+  }
+
+  catchThief(thief) {
+    this.state = "catch";
+    this.stateTimer = 1.8;
+    this.targetThief = thief;
+    thief.onCaught();
+    this.speechBubble = { text: "GOTCHA! Yield quietly!", timer: 2.5 };
+    world.logEvent(`${this.name} tackled and captured Thief #${thief.id}!`);
   }
 
   draw(ctx) {
@@ -179,9 +252,9 @@ class Guard {
     const px = Math.round(this.x);
     const py = Math.round(this.y);
 
-    let sheetKey = "guard_patrol";
-    if (this.state === "chase") sheetKey = "guard_run";
-    else if (this.state === "stand_watch") sheetKey = "guard_idle";
+    let sheetKey = "guard_idle";
+    if (this.state === "patrol") sheetKey = "guard_patrol";
+    else if (this.state === "chase") sheetKey = "guard_run";
     else if (this.state === "alert") sheetKey = "guard_alert";
     else if (this.state === "catch") sheetKey = "guard_catch";
     else if (this.state === "escort") sheetKey = "guard_escort";
@@ -190,48 +263,47 @@ class Guard {
     const frame = assets.getFrame(sheetKey, this.currentFrame);
     if (!frame) return;
 
-    // Draw lantern light cone ahead of guard
-    this.drawLightCone(ctx, px, py - 20);
+    const w = CONFIG.guards.spriteWidth;  // 80
+    const h = CONFIG.guards.spriteHeight; // 140
 
     ctx.save();
     if (!this.facingRight) {
-      ctx.translate(px, py - 48);
+      ctx.translate(px, py - h);
       ctx.scale(-1, 1);
-      ctx.drawImage(frame, -16, 0);
+      ctx.drawImage(frame, -w / 2, 0);
     } else {
-      ctx.translate(px, py - 48);
-      ctx.drawImage(frame, -16, 0);
+      ctx.translate(px, py - h);
+      ctx.drawImage(frame, -w / 2, 0);
     }
     ctx.restore();
 
-    // Alert bubble
-    if (this.alertBubble) {
-      ctx.save();
-      ctx.font = "bold 14px sans-serif";
-      ctx.fillStyle = "#FF2222";
-      ctx.textAlign = "center";
-      ctx.fillText(this.alertBubble.icon, px, py - 52);
-      ctx.restore();
+    if (this.speechBubble) {
+      this.drawSpeechBubble(ctx, px, py - h - 12, this.speechBubble.text);
     }
   }
 
-  drawLightCone(ctx, x, y) {
+  drawSpeechBubble(ctx, x, y, text) {
     ctx.save();
-    const coneLen = CONFIG.lighting.guardLightConeLength;
-    const dir = this.facingRight ? 1 : -1;
-    
-    const grad = ctx.createRadialGradient(x, y, 4, x + dir * coneLen * 0.7, y, coneLen);
-    grad.addColorStop(0, "rgba(255, 230, 140, 0.40)");
-    grad.addColorStop(0.6, "rgba(255, 210, 80, 0.15)");
-    grad.addColorStop(1, "rgba(255, 200, 50, 0)");
+    ctx.font = "bold 13px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+    const textW = ctx.measureText(text).width;
+    const boxW = textW + 18;
+    const boxH = 26;
 
-    ctx.fillStyle = grad;
+    ctx.fillStyle = "rgba(22, 28, 45, 0.96)";
+    ctx.strokeStyle = "#e89b38";
+    ctx.lineWidth = 1.8;
+
+    const bx = x - boxW / 2;
+    const by = y - boxH;
     ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineTo(x + dir * coneLen, y - 24);
-    ctx.lineTo(x + dir * coneLen, y + 24);
-    ctx.closePath();
+    ctx.roundRect(bx, by, boxW, boxH, 6);
     ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = "#ffdd88";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, x, by + boxH / 2);
     ctx.restore();
   }
 }

@@ -26,3 +26,4 @@ Use after any change to guards, thieves, detection, or chase code.
    confirm the story is readable: sneak, rob, spot, shout, chase, outcome,
    morning reaction.
 7. Report the final numbers to the user.
+

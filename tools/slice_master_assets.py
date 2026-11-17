@@ -282,3 +282,4 @@ if __name__ == "__main__":
     slice_props_and_campfires()
     slice_animals()
     generate_night_background_from_master()
+

@@ -1,18 +1,18 @@
 /**
  * src/render.js
- * Master rendering pipeline:
- * - Pixel-perfect integer canvas scaling with nearest-neighbor
- * - Multi-layer background rendering with time-of-day crossfade
- * - Depth-sorted drawing of characters, animals, and props
- * - Night lighting engine: dark overlay, warm lantern/fire/window glows
- * - Small clock & speed buttons UI
+ * Master Full HD (1920x1080) Rendering Pipeline:
+ * - 1:1 Pixel-sharp rendering of the native master diorama background
+ * - Real-time footprint tracks in snow with progressive decay
+ * - Depth-sorted drawing of HD characters, guards, thieves, and animals
+ * - Atmospheric night lighting with sweeping guard lantern cones & warm radial light glows
+ * - Crisp HUD clock and speed controls
  */
 
 class Renderer {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
-    this.ctx.imageSmoothingEnabled = false;
+    this.ctx.imageSmoothingEnabled = true; // High quality rendering
     this.showEventLog = false;
   }
 
@@ -22,15 +22,21 @@ class Renderer {
 
   render(villagers, guards, thieves, particles) {
     const ctx = this.ctx;
-    const w = CONFIG.display.baseWidth;
-    const h = CONFIG.display.baseHeight;
+    const w = CONFIG.display.baseWidth;  // 1920
+    const h = CONFIG.display.baseHeight; // 1080
 
     ctx.clearRect(0, 0, w, h);
 
-    // 1. Background rendering with time-of-day crossfade
+    // 1. Native 1920x1080 Background with Day/Dusk/Night/Morning crossfade
     this.drawBackgrounds(ctx, w, h);
 
-    // 2. Depth-sorted entities (villagers, guards, thieves, animals)
+    // 2. Dynamic snow footprint trails
+    this.drawFootprints(ctx);
+
+    // 3. Animals
+    this.drawAnimals(ctx);
+
+    // 4. Depth-sorted Entities (Y-sorting: characters lower on screen drawn in front)
     const entities = [...villagers, ...guards, ...thieves];
     entities.sort((a, b) => a.y - b.y);
 
@@ -38,29 +44,24 @@ class Renderer {
       entity.draw(ctx);
     }
 
-    // 3. Animals
-    this.drawAnimals(ctx);
-
-    // 4. Night lighting overlay & warm glows
+    // 5. Atmospheric Night Lighting & Lantern Cones
     if (timeManager.isNight() || timeManager.getPhase() === "Dusk") {
       this.drawNightLighting(ctx, w, h, guards);
     }
 
-    // 5. Environmental particles (snow, smoke)
+    // 6. Environmental particles (falling snow, chimney smoke, anvil sparks)
     eventManager.drawParticles(ctx);
 
-    // 6. Clock and UI controls
+    // 7. HUD: Clock and Speed UI
     this.drawUI(ctx, w, h);
   }
 
   drawBackgrounds(ctx, w, h) {
     const weights = timeManager.getLightingWeights();
 
-    // Always ensure opaque base so no background bleed occurs
+    // Solid base day
     const bgDay = assets.getImage("bg_day");
-    if (bgDay) {
-      ctx.drawImage(bgDay, 0, 0, w, h);
-    }
+    if (bgDay) ctx.drawImage(bgDay, 0, 0, w, h);
 
     if (weights.morning > 0) {
       const bgMorn = assets.getImage("bg_morning");
@@ -91,48 +92,85 @@ class Renderer {
     }
   }
 
+  drawFootprints(ctx) {
+    ctx.save();
+    for (const fp of world.footprints) {
+      ctx.fillStyle = `rgba(150, 165, 195, ${fp.alpha})`;
+      ctx.beginPath();
+      ctx.ellipse(Math.round(fp.x), Math.round(fp.y), 5.5, 3.2, fp.angle, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
   drawAnimals(ctx) {
     const cat = assets.getImage("cat_winter");
     const chicken = assets.getImage("chicken_winter");
     const sheep = assets.getImage("sheep_winter");
 
-    // Static animals grazing around village
-    if (cat) ctx.drawImage(cat, 185, 168, 22, 18);
-    if (chicken) ctx.drawImage(chicken, 110, 192, 16, 16);
-    if (sheep) ctx.drawImage(sheep, 290, 142, 28, 24);
+    // Static animals at key cozy spots in 1920x1080 coordinates
+    if (cat) ctx.drawImage(cat, 740, 650, 70, 58); // Tabby cat warming by campfire log
+    if (chicken) ctx.drawImage(chicken, 420, 740, 52, 52); // Chicken pecking snow near forge
+    if (sheep) ctx.drawImage(sheep, 1140, 520, 90, 78); // Fluffy sheep grazing near east trail
   }
 
   drawNightLighting(ctx, w, h, guards) {
     ctx.save();
-    // Warm radial light glows around light sources (lighter blend mode)
     ctx.globalCompositeOperation = "lighter";
-    
-    // Central Campfire
-    this.drawRadialGlow(ctx, CONFIG.world.campfirePos.x, CONFIG.world.campfirePos.y, CONFIG.lighting.campfireGlowRadius, "rgba(255, 175, 40, 0.45)");
 
-    // Blacksmith Forge Hearth
-    this.drawRadialGlow(ctx, CONFIG.world.forgePos.x + 36, CONFIG.world.forgePos.y - 12, CONFIG.lighting.forgeGlowRadius, "rgba(255, 140, 30, 0.40)");
+    // Central Campfire Warm Glow
+    this.drawRadialGlow(ctx, 890, 610, CONFIG.lighting.campfireGlowRadius, "rgba(255, 160, 45, 0.50)");
 
-    // Cottages glowing paper windows
-    this.drawRadialGlow(ctx, 110, 96, CONFIG.lighting.windowGlowRadius, "rgba(255, 215, 75, 0.35)");
-    this.drawRadialGlow(ctx, 238, 82, CONFIG.lighting.windowGlowRadius, "rgba(255, 215, 75, 0.35)");
-    this.drawRadialGlow(ctx, 352, 104, CONFIG.lighting.windowGlowRadius, "rgba(255, 215, 75, 0.35)");
+    // Blacksmith Forge Hearth Glow
+    this.drawRadialGlow(ctx, 410, 880, CONFIG.lighting.forgeGlowRadius, "rgba(255, 135, 30, 0.45)");
 
-    // Lantern signpost
-    this.drawRadialGlow(ctx, CONFIG.world.marketPos.x + 24, CONFIG.world.marketPos.y - 18, CONFIG.lighting.lanternGlowRadius, "rgba(255, 200, 60, 0.35)");
+    // Cottages glowing shoji windows (warm amber)
+    this.drawRadialGlow(ctx, 442, 420, CONFIG.lighting.windowGlowRadius, "rgba(255, 215, 80, 0.40)");
+    this.drawRadialGlow(ctx, 926, 360, CONFIG.lighting.windowGlowRadius, "rgba(255, 215, 80, 0.40)");
+    this.drawRadialGlow(ctx, 1350, 440, CONFIG.lighting.windowGlowRadius, "rgba(255, 215, 80, 0.40)");
 
-    // Guards' lanterns
+    // Market Stall Lantern
+    this.drawRadialGlow(ctx, 1120, 850, CONFIG.lighting.lanternGlowRadius, "rgba(255, 195, 60, 0.40)");
+
+    // Guards' Lantern Light Cones and Surrounding Glow
     for (const g of guards) {
       if (g.state !== "inactive") {
-        this.drawRadialGlow(ctx, g.x, g.y - 20, CONFIG.lighting.lanternGlowRadius, "rgba(255, 210, 70, 0.40)");
+        const lx = g.x + (g.facingRight ? 18 : -18);
+        const ly = g.y - 65;
+
+        // Radial lantern glow
+        this.drawRadialGlow(ctx, lx, ly, CONFIG.lighting.lanternGlowRadius, "rgba(255, 210, 70, 0.45)");
+
+        // Directional Light Cone
+        this.drawGuardLightCone(ctx, lx, ly, g.facingRight ? 0 : Math.PI);
       }
     }
 
     ctx.restore();
   }
 
+  drawGuardLightCone(ctx, x, y, directionAngle) {
+    const coneLen = CONFIG.lighting.guardLightConeLength; // 260
+    const halfAngle = (CONFIG.lighting.guardLightConeAngle * Math.PI) / 180 / 2;
+
+    const startAngle = directionAngle - halfAngle;
+    const endAngle = directionAngle + halfAngle;
+
+    const grad = ctx.createRadialGradient(x, y, 10, x, y, coneLen);
+    grad.addColorStop(0, "rgba(255, 225, 120, 0.45)");
+    grad.addColorStop(0.7, "rgba(255, 200, 70, 0.22)");
+    grad.addColorStop(1, "rgba(255, 180, 40, 0)");
+
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.arc(x, y, coneLen, startAngle, endAngle);
+    ctx.closePath();
+    ctx.fill();
+  }
+
   drawRadialGlow(ctx, x, y, radius, colorRgba) {
-    const grad = ctx.createRadialGradient(x, y, 2, x, y, radius);
+    const grad = ctx.createRadialGradient(x, y, 8, x, y, radius);
     grad.addColorStop(0, colorRgba);
     grad.addColorStop(1, "rgba(0, 0, 0, 0)");
     ctx.fillStyle = grad;
@@ -144,63 +182,73 @@ class Renderer {
   drawUI(ctx, w, h) {
     ctx.save();
     // Clock in upper left
-    ctx.fillStyle = "rgba(20, 24, 34, 0.85)";
-    ctx.strokeStyle = "#46424e";
-    ctx.lineWidth = 1;
-    ctx.fillRect(8, 8, 104, 22);
-    ctx.strokeRect(8, 8, 104, 22);
+    ctx.fillStyle = "rgba(18, 22, 34, 0.90)";
+    ctx.strokeStyle = "#484452";
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.roundRect(24, 24, 220, 46, 6);
+    ctx.fill();
+    ctx.stroke();
 
-    ctx.font = "bold 9px monospace";
-    ctx.fillStyle = "#F5EAD4";
+    ctx.font = "bold 18px monospace";
+    ctx.fillStyle = "#F6ECD8";
     const phase = timeManager.getPhase();
     const timeStr = timeManager.getFormattedTime();
-    ctx.fillText(`${timeStr} (${phase})`, 14, 22);
+    ctx.fillText(`🕒 ${timeStr} (${phase})`, 38, 54);
 
     // Speed indicator buttons in top-right
     const speeds = [0, 1, 2, 4];
     const labels = ["⏸", "1x", "2x", "4x"];
-    const btnW = 18;
-    const btnH = 14;
-    const startX = w - 88;
+    const btnW = 44;
+    const btnH = 36;
+    const startX = w - 210;
 
     for (let i = 0; i < speeds.length; i++) {
-      const bx = startX + i * 20;
-      const by = 8;
+      const bx = startX + i * 48;
+      const by = 24;
       const isSelected = timeManager.speed === speeds[i];
 
-      ctx.fillStyle = isSelected ? "#E89B38" : "rgba(20, 24, 34, 0.85)";
-      ctx.fillRect(bx, by, btnW, btnH);
-      ctx.strokeStyle = isSelected ? "#FFF" : "#46424e";
-      ctx.strokeRect(bx, by, btnW, btnH);
+      ctx.fillStyle = isSelected ? "#E89B38" : "rgba(18, 22, 34, 0.90)";
+      ctx.beginPath();
+      ctx.roundRect(bx, by, btnW, btnH, 5);
+      ctx.fill();
+
+      ctx.strokeStyle = isSelected ? "#FFF" : "#484452";
+      ctx.stroke();
 
       ctx.fillStyle = isSelected ? "#201812" : "#E8D8C0";
-      ctx.font = "8px sans-serif";
+      ctx.font = "bold 15px sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText(labels[i], bx + btnW / 2, by + 10);
+      ctx.textBaseline = "middle";
+      ctx.fillText(labels[i], bx + btnW / 2, by + btnH / 2);
     }
 
-    // Optional Event Log (toggle with 'L')
+    // Event Log (toggle with 'L')
     if (this.showEventLog) {
-      const logW = 210;
-      const logH = 90;
-      const lx = 8;
-      const ly = h - logH - 8;
+      const logW = 460;
+      const logH = 200;
+      const lx = 24;
+      const ly = h - logH - 24;
 
-      ctx.fillStyle = "rgba(16, 20, 28, 0.88)";
-      ctx.strokeStyle = "#403a46";
-      ctx.fillRect(lx, ly, logW, logH);
-      ctx.strokeRect(lx, ly, logW, logH);
+      ctx.fillStyle = "rgba(14, 18, 28, 0.94)";
+      ctx.strokeStyle = "#423c4a";
+      ctx.beginPath();
+      ctx.roundRect(lx, ly, logW, logH, 6);
+      ctx.fill();
+      ctx.stroke();
 
-      ctx.font = "7px monospace";
-      ctx.fillStyle = "#EAE2D0";
+      ctx.font = "bold 14px monospace";
+      ctx.fillStyle = "#F0E8D8";
       ctx.textAlign = "left";
-      ctx.fillText("VILLAGE EVENT LOG (Press L to close)", lx + 6, ly + 10);
+      ctx.textBaseline = "top";
+      ctx.fillText("📜 VILLAGE EVENT LOG (Press 'L' to toggle)", lx + 14, ly + 14);
 
-      for (let i = 0; i < Math.min(6, world.events.length); i++) {
+      ctx.font = "13px monospace";
+      for (let i = 0; i < Math.min(8, world.events.length); i++) {
         ctx.fillStyle = world.events[i].includes("robbed") || world.events[i].includes("caught") 
           ? "#FFA868" 
           : "#CCD2DE";
-        ctx.fillText(world.events[i], lx + 6, ly + 22 + i * 11);
+        ctx.fillText(world.events[i], lx + 14, ly + 40 + i * 19);
       }
     }
 

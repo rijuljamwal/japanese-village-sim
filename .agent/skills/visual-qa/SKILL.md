@@ -26,3 +26,4 @@ Run this after every visual change, and before reporting anything finished.
 ## Report format
 Give the user: the screenshots, the scores, what you fixed, what is still
 different, and what assets (if any) the user needs to provide.
+

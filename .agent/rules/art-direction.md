@@ -222,3 +222,4 @@ All numbers go in `src/config.js`: day length, speeds, number of guards and
 thieves, detection distance, detection chance, thief spawn delay, loot
 probabilities, capture vs escape weights, stamina, how long a captured thief
 is jailed, and so on. Never hide tunable numbers inside other files.
+

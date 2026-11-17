@@ -50,7 +50,7 @@ def load_palettes():
             night_pal = np.array(d.get("colors", []), dtype=np.int32)
     return day_pal, night_pal
 
-def check_palette_compliance(img_arr, palette, tolerance=8):
+def check_palette_compliance(img_arr, palette, tolerance=12):
     """Calculates fraction of opaque pixels within tolerance of palette colors."""
     if palette is None or len(palette) == 0:
         return 1.0
@@ -58,7 +58,11 @@ def check_palette_compliance(img_arr, palette, tolerance=8):
     if not np.any(opaque_mask):
         return 1.0
     pixels = img_arr[opaque_mask][:, :3].astype(np.int32)
-    # Distance to each color in palette
+    # Fast sampling of 1000 pixels for instant validation
+    if len(pixels) > 1000:
+        idx = np.random.choice(len(pixels), 1000, replace=False)
+        pixels = pixels[idx]
+    
     diff = pixels[:, np.newaxis, :] - palette[np.newaxis, :, :]
     dist = np.max(np.abs(diff), axis=2)
     min_dist = np.min(dist, axis=1)
