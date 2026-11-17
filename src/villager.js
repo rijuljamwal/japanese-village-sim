@@ -1,7 +1,8 @@
 /**
  * src/villager.js
- * Villager agent with Full HD (80x140) rendering, real-world physics,
- * avoidance steering, social interactions, station jobs, and campfire gatherings.
+ * Villager agent with realistic human walking physics (acceleration, deceleration, avoidance steering),
+ * purpose-driven station schedules, quick natural passing conversations (no long freezes),
+ * and depth-sorted campfire gatherings.
  */
 
 class Villager {
@@ -11,28 +12,31 @@ class Villager {
     this.name = name;
     this.spritePrefix = spritePrefix;
     this.homeHouseId = homeHouseId;
-    this.role = role || "villager"; // "farmer", "blacksmith", "merchant", "child", "elder", "hunter"
+    this.role = role || "villager";
     
     this.x = startX;
     this.y = startY;
     this.vx = 0;
     this.vy = 0;
-    this.radius = CONFIG.villagers.collisionRadius;
+    this.targetVx = 0;
+    this.targetVy = 0;
+    this.radius = CONFIG.villagers.collisionRadius || 26;
     this.facingRight = true;
     
     this.state = "idle"; // "idle", "walk", "work", "sit", "talk", "sleep", "upset"
-    this.stateTimer = 2.0;
+    this.stateTimer = 1.5 + Math.random() * 2.0;
     this.animTimer = 0;
     this.currentFrame = 0;
     this.footstepTimer = 0;
     this.workTimer = 0;
+    this.chatCooldown = 5.0 + Math.random() * 10.0; // Cooldown between conversations
     
     this.path = [];
     this.targetNodeId = null;
     this.isAsleep = false;
     this.speechBubble = null;
     this.chatPartner = null;
-    this.speed = CONFIG.villagers.walkSpeed * (0.90 + Math.random() * 0.2);
+    this.speed = (CONFIG.villagers.walkSpeed || 72) * (0.92 + Math.random() * 0.16);
   }
 
   setDestination(targetNodeId) {
@@ -46,6 +50,8 @@ class Villager {
     this.animTimer += dt;
     this.footstepTimer += dt;
 
+    if (this.chatCooldown > 0) this.chatCooldown -= dt;
+
     if (this.speechBubble) {
       this.speechBubble.timer -= dt;
       if (this.speechBubble.timer <= 0) this.speechBubble = null;
@@ -55,7 +61,7 @@ class Villager {
     if (isNight) {
       if (!this.isAsleep) {
         const home = world.getHouse(this.homeHouseId);
-        if (home && Math.hypot(this.x - home.doorX, this.y - home.doorY) > 20) {
+        if (home && Math.hypot(this.x - home.doorX, this.y - home.doorY) > 25) {
           if (this.path.length === 0) {
             const doorNode = this.homeHouseId === 1 ? "west_door" : (this.homeHouseId === 2 ? "north_door" : "east_door");
             this.setDestination(doorNode);
@@ -76,21 +82,20 @@ class Villager {
         const home = world.getHouse(this.homeHouseId);
         if (home && home.robbed) {
           this.state = "upset";
-          this.speechBubble = { text: "💢 Oh no! My cottage was robbed in the night!", timer: 6.0 };
+          this.speechBubble = { text: "💢 Oh no! My cottage was robbed in the night!", timer: 5.0 };
         }
       }
     }
 
-    // Real-World Character-to-Character Physics & Social Interaction
+    // Soft-body physics with other agents (Villagers, Guards, Animals)
     for (const other of allAgents) {
       if (other === this || other.isAsleep) continue;
 
-      // Soft-body physical separation
       const collided = world.resolveAgentPhysics(this, other);
 
-      // Social greetings when crossing paths on a trail
+      // Quick natural passing greeting (Only if cooldown expired and not already talking)
       if (collided && this.state === "walk" && other.state === "walk" && !this.chatPartner && !other.chatPartner) {
-        if (Math.random() < CONFIG.villagers.chatterChance) {
+        if (this.chatCooldown <= 0 && other.chatCooldown <= 0 && Math.random() < 0.35) {
           this.startConversation(other);
         }
       }
@@ -98,23 +103,23 @@ class Villager {
 
     // State Machine
     if (this.state === "talk") {
-      this.vx = 0;
-      this.vy = 0;
+      this.targetVx = 0;
+      this.targetVy = 0;
       this.stateTimer -= dt;
       if (this.stateTimer <= 0) {
-        this.state = "idle";
-        this.stateTimer = 2.0 + Math.random() * 3.0;
+        this.state = "walk"; // Resume walking immediately
         this.chatPartner = null;
         this.speechBubble = null;
+        this.chatCooldown = 20.0; // 20s cooldown before talking again
       }
     } else if (this.state === "work") {
-      this.vx = 0;
-      this.vy = 0;
+      this.targetVx = 0;
+      this.targetVy = 0;
       this.stateTimer -= dt;
       this.workTimer += dt;
       
-      // Blacksmith sparks at forge
-      if (this.role === "blacksmith" && this.workTimer >= 0.7) {
+      // Blacksmith hammering sparks at forge
+      if (this.role === "blacksmith" && this.workTimer >= 0.8) {
         this.workTimer = 0;
         if (typeof eventManager !== "undefined") {
           eventManager.addSparks(this.x + (this.facingRight ? 35 : -35), this.y - 45);
@@ -123,11 +128,11 @@ class Villager {
 
       if (this.stateTimer <= 0) {
         this.state = "idle";
-        this.stateTimer = 2.5;
+        this.stateTimer = 2.0 + Math.random() * 2.0;
       }
     } else if (this.state === "sit") {
-      this.vx = 0;
-      this.vy = 0;
+      this.targetVx = 0;
+      this.targetVy = 0;
       this.stateTimer -= dt;
       if (this.stateTimer <= 0) {
         this.state = "idle";
@@ -141,36 +146,33 @@ class Villager {
           const dy = nextNode.y - this.y;
           const dist = Math.hypot(dx, dy);
 
-          if (dist < 15) {
-            this.path.shift(); // Arrived at waypoint
+          if (dist < 18) {
+            this.path.shift(); // Reached waypoint
           } else {
             this.facingRight = dx >= 0;
             const dirX = dx / dist;
             const dirY = dy / dist;
 
-            // Predictive avoidance steering around nearby walking agents
-            const { steerX, steerY } = world.computeAvoidanceSteering(this, allAgents);
+            // Lateral sidewalk avoidance steering around oncoming walkers
+            const { steerX, steerY } = world.computeAvoidanceSteering(this, allAgents, 65);
 
-            this.vx = dirX * this.speed + steerX;
-            this.vy = dirY * this.speed + steerY;
+            this.targetVx = dirX * this.speed + steerX;
+            this.targetVy = dirY * this.speed + steerY;
 
-            this.x += this.vx * dt;
-            this.y += this.vy * dt;
-
-            // Deposit realistic footprint in the snow
-            if (this.footstepTimer >= 0.35) {
+            // Footprints in snow
+            if (this.footstepTimer >= 0.38) {
               this.footstepTimer = 0;
               world.addFootprint(this.x, this.y, Math.atan2(dy, dx));
             }
           }
         }
       } else {
-        // Destination reached -> trigger station work or rest
+        // Path complete -> start station work or rest
         this.onReachedDestination(currentHour);
       }
     } else if (this.state === "idle") {
-      this.vx = 0;
-      this.vy = 0;
+      this.targetVx = 0;
+      this.targetVy = 0;
       this.stateTimer -= dt;
       if (this.stateTimer <= 0) {
         this.chooseNextActivity(currentHour);
@@ -182,11 +184,20 @@ class Villager {
       }
     }
 
-    // Solid obstacle collision resolution against houses, fences, forge, market, campfire
+    // Realistic human acceleration / deceleration physics (smooth ease-in and ease-out)
+    const accelRate = 7.0;
+    this.vx += (this.targetVx - this.vx) * Math.min(1.0, accelRate * dt);
+    this.vy += (this.targetVy - this.vy) * Math.min(1.0, accelRate * dt);
+
+    this.x += this.vx * dt;
+    this.y += this.vy * dt;
+
+    // Solid obstacle collisions (houses, fences, campfire, river)
     world.resolveObstacleCollision(this, this.radius);
 
     // Animation frame timing
-    const frameRate = this.state === "walk" ? 0.12 : 0.22;
+    const isMoving = Math.hypot(this.vx, this.vy) > 5;
+    const frameRate = isMoving ? 0.13 : 0.24;
     if (this.animTimer >= frameRate) {
       this.animTimer = 0;
       this.currentFrame++;
@@ -194,34 +205,32 @@ class Villager {
   }
 
   onReachedDestination(currentHour) {
-    this.vx = 0;
-    this.vy = 0;
+    this.targetVx = 0;
+    this.targetVy = 0;
 
-    // Check if at station
     if (this.targetNodeId === "forge_anvil") {
       this.state = "work";
-      this.stateTimer = 8.0 + Math.random() * 6.0;
-      this.speechBubble = { text: "Forging steel horseshoe...", timer: 3.5 };
+      this.stateTimer = 9.0 + Math.random() * 5.0;
+      this.speechBubble = { text: "Forging horseshoe... 🔨", timer: 3.0 };
     } else if (this.targetNodeId === "garden_gate") {
       this.state = "work";
-      this.stateTimer = 7.0 + Math.random() * 5.0;
-      this.speechBubble = { text: "Tending winter leeks...", timer: 3.5 };
+      this.stateTimer = 8.0 + Math.random() * 4.0;
+      this.speechBubble = { text: "Weeding cabbage patch... 🥬", timer: 3.0 };
     } else if (this.targetNodeId === "market_plaza") {
       this.state = "work";
-      this.stateTimer = 9.0 + Math.random() * 5.0;
-      this.speechBubble = { text: "Fresh winter produce!", timer: 3.5 };
+      this.stateTimer = 10.0 + Math.random() * 6.0;
+      this.speechBubble = { text: "Fresh sweet potatoes!", timer: 3.0 };
     } else if (this.targetNodeId === "bench_left" || this.targetNodeId === "bench_right") {
       this.state = "sit";
-      this.stateTimer = 10.0 + Math.random() * 8.0;
-      this.speechBubble = { text: "Mmm, warm campfire...", timer: 3.5 };
+      this.stateTimer = 12.0 + Math.random() * 8.0;
+      this.speechBubble = { text: "Warm tea by the fire...", timer: 3.0 };
     } else {
       this.state = "idle";
-      this.stateTimer = 3.0 + Math.random() * 4.0;
+      this.stateTimer = 2.5 + Math.random() * 3.0;
     }
   }
 
   chooseNextActivity(currentHour) {
-    // Campfire feast time during midday (12:00-13:30) or evening dusk (17:00-18:30)
     const isMealTime = (currentHour >= 12.0 && currentHour <= 13.5) || (currentHour >= 17.0 && currentHour <= 18.5);
 
     if (isMealTime) {
@@ -233,17 +242,15 @@ class Villager {
       return;
     }
 
-    // Role-specific daytime stations
-    if (this.role === "farmer" && Math.random() < 0.65) {
+    if (this.role === "farmer" && Math.random() < 0.60) {
       this.setDestination("garden_gate");
-    } else if (this.role === "blacksmith" && Math.random() < 0.65) {
+    } else if (this.role === "blacksmith" && Math.random() < 0.60) {
       this.setDestination("forge_anvil");
-    } else if (this.role === "merchant" && Math.random() < 0.65) {
+    } else if (this.role === "merchant" && Math.random() < 0.60) {
       this.setDestination("market_plaza");
-    } else if (this.role === "hunter" && Math.random() < 0.65) {
+    } else if (this.role === "hunter" && Math.random() < 0.60) {
       this.setDestination(Math.random() < 0.5 ? "bridge_west" : "bridge_east");
     } else {
-      // General village stroll destinations
       const choices = ["plaza", "west_trail", "north_trail", "east_trail", "south_crossroads", "forge_plaza", "market_plaza", "bridge_west"];
       const randDest = choices[Math.floor(Math.random() * choices.length)];
       this.setDestination(randDest);
@@ -253,26 +260,27 @@ class Villager {
   startConversation(other) {
     this.state = "talk";
     other.state = "talk";
-    this.stateTimer = CONFIG.villagers.chatterDurationSeconds;
-    other.stateTimer = CONFIG.villagers.chatterDurationSeconds;
+    this.stateTimer = 1.8; // Quick natural 1.8s greeting (no long freeze)
+    other.stateTimer = 1.8;
     this.chatPartner = other;
     other.chatPartner = this;
+    this.chatCooldown = 18.0;
+    other.chatCooldown = 18.0;
 
     // Face each other
     this.facingRight = other.x >= this.x;
     other.facingRight = this.x >= other.x;
 
     const greetings = [
-      "Konnichiwa! Cold winter today!",
+      "Ohayo! Cold winter day!",
       "The snow is falling softly...",
-      "Hot tea at the hearth smells wonderful!",
-      "Stay warm by the campfire!",
-      "Keep an eye out for night thieves!",
-      "The winter leeks are crisp under the frost.",
-      "The river has frozen solid over the stones."
+      "Hot tea at the hearth smells nice!",
+      "Stay warm by the fire!",
+      "Watch out for night thieves!",
+      "The winter leeks are sweet this year."
     ];
     const pick = greetings[Math.floor(Math.random() * greetings.length)];
-    this.speechBubble = { text: pick, timer: 3.5 };
+    this.speechBubble = { text: pick, timer: 2.5 };
   }
 
   draw(ctx) {
@@ -281,18 +289,26 @@ class Villager {
     const px = Math.round(this.x);
     const py = Math.round(this.y);
 
-    const sheetKey = this.state === "walk" 
+    const isMoving = Math.hypot(this.vx, this.vy) > 5;
+    const sheetKey = (this.state === "walk" && isMoving)
       ? `${this.spritePrefix}_walk` 
       : `${this.spritePrefix}_idle`;
       
     const frame = assets.getFrame(sheetKey, this.currentFrame);
     if (!frame) return;
 
-    const w = CONFIG.villagers.spriteWidth;  // 80
-    const h = CONFIG.villagers.spriteHeight; // 140
+    const w = CONFIG.villagers.spriteWidth || 80;
+    const h = CONFIG.villagers.spriteHeight || 140;
 
     ctx.save();
-    // Anchor feet baseline at py, centered horizontally
+    // Subtle walking tilt into direction of motion for natural gait
+    if (isMoving) {
+      const tiltAngle = (this.vx / this.speed) * 0.04;
+      ctx.translate(px, py);
+      ctx.rotate(tiltAngle);
+      ctx.translate(-px, -py);
+    }
+
     if (!this.facingRight) {
       ctx.translate(px, py - h);
       ctx.scale(-1, 1);
@@ -319,7 +335,6 @@ class Villager {
     ctx.strokeStyle = "#2e2420";
     ctx.lineWidth = 1.8;
 
-    // Rounded speech bubble
     const bx = x - boxW / 2;
     const by = y - boxH;
     ctx.beginPath();
@@ -327,7 +342,6 @@ class Villager {
     ctx.fill();
     ctx.stroke();
 
-    // Small pointer triangle
     ctx.beginPath();
     ctx.moveTo(x - 5, by + boxH);
     ctx.lineTo(x, by + boxH + 6);

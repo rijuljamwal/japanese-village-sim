@@ -41,25 +41,25 @@ const CONFIG = {
 
   // Physical Obstacles (AABB boxes that characters, guards, and thieves physically collide with)
   obstacles: [
-    // 1. West Cottage (Upper Left)
-    { id: "house_west", x: 230, y: 150, w: 390, h: 460 },
-    // 2. North Manor (Upper Center)
-    { id: "house_north", x: 690, y: 110, w: 460, h: 460 },
-    // 3. East Cottage (Upper Right)
-    { id: "house_east", x: 1180, y: 180, w: 390, h: 460 },
+    // 1. West Cottage (Upper Left - solid walls)
+    { id: "house_west", x: 240, y: 150, w: 340, h: 310 },
+    // 2. North Manor (Upper Center - solid walls)
+    { id: "house_north", x: 700, y: 110, w: 425, h: 295 },
+    // 3. East Cottage (Upper Right - solid walls)
+    { id: "house_east", x: 1180, y: 185, w: 350, h: 295 },
     // 4. Fenced Garden (Middle Left)
-    { id: "garden_fence", x: 75, y: 480, w: 350, h: 280 },
+    { id: "garden_fence", x: 75, y: 485, w: 345, h: 285 },
     // 5. Blacksmith Forge (Bottom Left)
     { id: "forge_building", x: 80, y: 760, w: 480, h: 300 },
     // 6. Market Stall (Bottom Right)
     { id: "market_stall", x: 1070, y: 770, w: 380, h: 290 },
     // 7. Central Campfire & Feast Table (Plaza Center)
-    { id: "campfire_ring", x: 830, y: 550, w: 140, h: 120 },
-    { id: "feast_table", x: 840, y: 670, w: 120, h: 75 },
+    { id: "campfire_ring", x: 830, y: 530, w: 140, h: 100 },
+    { id: "feast_table", x: 840, y: 660, w: 120, h: 70 },
     // 8. Frozen River Bank Top (Above Wooden Bridge)
-    { id: "river_top", x: 1500, y: 0, w: 420, h: 520 },
+    { id: "river_top", x: 1490, y: 0, w: 430, h: 515 },
     // 9. Frozen River Bank Bottom (Below Wooden Bridge)
-    { id: "river_bottom", x: 1510, y: 680, w: 410, h: 400 }
+    { id: "river_bottom", x: 1500, y: 685, w: 420, h: 395 }
   ],
 
   // Trail Network Navigation Nodes (along the cleared footprint paths)

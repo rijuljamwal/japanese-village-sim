@@ -1,18 +1,18 @@
 /**
  * src/render.js
  * Master Full HD (1920x1080) Rendering Pipeline:
- * - 1:1 Pixel-sharp rendering of the native master diorama background
+ * - 1:1 Pixel-sharp rendering of the clean terrain background (NO blur smudges, NO static characters)
  * - Real-time footprint tracks in snow with progressive decay
- * - Depth-sorted drawing of HD characters, guards, thieves, and animals
- * - Atmospheric night lighting with sweeping guard lantern cones & warm radial light glows
- * - Crisp HUD clock and speed controls
+ * - Unified Depth Sorting: Buildings, Props, Animals, Villagers, Guards, and Thieves all Y-sorted together
+ * - Dynamic Night Lighting with sweeping lantern vision cones & warm radial light glows
+ * - Clean HUD clock and speed controls
  */
 
 class Renderer {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
-    this.ctx.imageSmoothingEnabled = true; // High quality rendering
+    this.ctx.imageSmoothingEnabled = true;
     this.showEventLog = false;
   }
 
@@ -20,46 +20,54 @@ class Renderer {
     this.showEventLog = !this.showEventLog;
   }
 
-  render(villagers, guards, thieves, particles) {
+  render(worldObjects, villagers, guards, thieves, animals, particles) {
     const ctx = this.ctx;
     const w = CONFIG.display.baseWidth;  // 1920
     const h = CONFIG.display.baseHeight; // 1080
 
     ctx.clearRect(0, 0, w, h);
 
-    // 1. Native 1920x1080 Background with Day/Dusk/Night/Morning crossfade
+    // 1. Pristine 1920x1080 Terrain Background with 4-phase crossfade
     this.drawBackgrounds(ctx, w, h);
 
     // 2. Dynamic snow footprint trails
     this.drawFootprints(ctx);
 
-    // 3. Animals
-    this.drawAnimals(ctx);
+    // 3. Unified Depth-Sorted Entities: Buildings, Props, Animals, Villagers, Guards, Thieves
+    // Sorted strictly by bottom feet / base Y position (isometric Y-sorting)
+    const entities = [
+      ...worldObjects,
+      ...animals,
+      ...villagers,
+      ...guards,
+      ...thieves
+    ];
 
-    // 4. Depth-sorted Entities (Y-sorting: characters lower on screen drawn in front)
-    const entities = [...villagers, ...guards, ...thieves];
-    entities.sort((a, b) => a.y - b.y);
+    entities.sort((a, b) => {
+      const ya = a.baseY !== undefined ? a.baseY : a.y;
+      const yb = b.baseY !== undefined ? b.baseY : b.y;
+      return ya - yb;
+    });
 
     for (const entity of entities) {
       entity.draw(ctx);
     }
 
-    // 5. Atmospheric Night Lighting & Lantern Cones
+    // 4. Atmospheric Night Lighting & Sweeping Guard Lantern Cones
     if (timeManager.isNight() || timeManager.getPhase() === "Dusk") {
       this.drawNightLighting(ctx, w, h, guards);
     }
 
-    // 6. Environmental particles (falling snow, chimney smoke, anvil sparks)
+    // 5. Environmental particles (falling snow, chimney smoke, anvil sparks)
     eventManager.drawParticles(ctx);
 
-    // 7. HUD: Clock and Speed UI
+    // 6. HUD: Clock and Speed UI
     this.drawUI(ctx, w, h);
   }
 
   drawBackgrounds(ctx, w, h) {
     const weights = timeManager.getLightingWeights();
 
-    // Solid base day
     const bgDay = assets.getImage("bg_day");
     if (bgDay) ctx.drawImage(bgDay, 0, 0, w, h);
 
@@ -103,23 +111,12 @@ class Renderer {
     ctx.restore();
   }
 
-  drawAnimals(ctx) {
-    const cat = assets.getImage("cat_winter");
-    const chicken = assets.getImage("chicken_winter");
-    const sheep = assets.getImage("sheep_winter");
-
-    // Static animals at key cozy spots in 1920x1080 coordinates
-    if (cat) ctx.drawImage(cat, 740, 650, 70, 58); // Tabby cat warming by campfire log
-    if (chicken) ctx.drawImage(chicken, 420, 740, 52, 52); // Chicken pecking snow near forge
-    if (sheep) ctx.drawImage(sheep, 1140, 520, 90, 78); // Fluffy sheep grazing near east trail
-  }
-
   drawNightLighting(ctx, w, h, guards) {
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
 
     // Central Campfire Warm Glow
-    this.drawRadialGlow(ctx, 890, 610, CONFIG.lighting.campfireGlowRadius, "rgba(255, 160, 45, 0.50)");
+    this.drawRadialGlow(ctx, 900, 600, CONFIG.lighting.campfireGlowRadius, "rgba(255, 160, 45, 0.50)");
 
     // Blacksmith Forge Hearth Glow
     this.drawRadialGlow(ctx, 410, 880, CONFIG.lighting.forgeGlowRadius, "rgba(255, 135, 30, 0.45)");
@@ -138,10 +135,7 @@ class Renderer {
         const lx = g.x + (g.facingRight ? 18 : -18);
         const ly = g.y - 65;
 
-        // Radial lantern glow
         this.drawRadialGlow(ctx, lx, ly, CONFIG.lighting.lanternGlowRadius, "rgba(255, 210, 70, 0.45)");
-
-        // Directional Light Cone
         this.drawGuardLightCone(ctx, lx, ly, g.facingRight ? 0 : Math.PI);
       }
     }
