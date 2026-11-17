@@ -1,45 +1,118 @@
 # Missing Assets Tracker
 
-The following 35 assets need to be generated:
+✅ All required core character actions and folders exist.
 
-- [ ] `assets/characters/farmer_man/farmer_man_idle_Nf_32x48.png`
-- [ ] `assets/characters/farmer_man/farmer_man_walk_Nf_32x48.png`
-- [ ] `assets/characters/farmer_man/farmer_man_farm_Nf_32x48.png`
-- [ ] `assets/characters/farmer_woman/farmer_woman_idle_Nf_32x48.png`
-- [ ] `assets/characters/farmer_woman/farmer_woman_walk_Nf_32x48.png`
-- [ ] `assets/characters/farmer_woman/farmer_woman_carry_Nf_32x48.png`
-- [ ] `assets/characters/merchant/merchant_idle_Nf_32x48.png`
-- [ ] `assets/characters/merchant/merchant_walk_Nf_32x48.png`
-- [ ] `assets/characters/merchant/merchant_trade_Nf_32x48.png`
-- [ ] `assets/characters/child/child_idle_Nf_32x48.png`
-- [ ] `assets/characters/child/child_walk_Nf_32x48.png`
-- [ ] `assets/characters/elder/elder_idle_Nf_32x48.png`
-- [ ] `assets/characters/elder/elder_walk_Nf_32x48.png`
-- [ ] `assets/characters/grandmother/grandmother_idle_Nf_32x48.png`
-- [ ] `assets/characters/grandmother/grandmother_walk_Nf_32x48.png`
-- [ ] `assets/characters/priest/priest_idle_Nf_32x48.png`
-- [ ] `assets/characters/priest/priest_walk_Nf_32x48.png`
-- [ ] `assets/characters/fisherman/fisherman_idle_Nf_32x48.png`
-- [ ] `assets/characters/fisherman/fisherman_walk_Nf_32x48.png`
-- [ ] `assets/characters/drummer/drummer_idle_Nf_32x48.png`
-- [ ] `assets/characters/drummer/drummer_drum_Nf_32x48.png`
-- [ ] `assets/characters/guard/guard_idle_Nf_32x48.png`
-- [ ] `assets/characters/guard/guard_patrol_Nf_32x48.png`
-- [ ] `assets/characters/guard/guard_run_Nf_32x48.png`
-- [ ] `assets/characters/guard/guard_alert_Nf_32x48.png`
-- [ ] `assets/characters/guard/guard_shout_Nf_32x48.png`
-- [ ] `assets/characters/guard/guard_catch_Nf_32x48.png`
-- [ ] `assets/characters/guard/guard_escort_Nf_32x48.png`
-- [ ] `assets/characters/guard/guard_frustrated_Nf_32x48.png`
-- [ ] `assets/characters/thief/thief_sneak_Nf_32x48.png`
-- [ ] `assets/characters/thief/thief_hide_Nf_32x48.png`
-- [ ] `assets/characters/thief/thief_rob_Nf_32x48.png`
-- [ ] `assets/characters/thief/thief_run_Nf_32x48.png`
-- [ ] `assets/characters/thief/thief_escape_Nf_32x48.png`
-- [ ] `assets/characters/thief/thief_captured_Nf_32x48.png`
 
 ## Current Asset Validation Report
-- Validated files: 0
+- Validated files: 101
 - Errors: 0
-- Warnings: 0
+- Warnings: 107
 
+### Warnings
+- ⚠️ animals\cat_tabby_summer.png: Palette match is 44.1% (target >= 95%)
+- ⚠️ animals\cat_tabby_winter.png: Palette match is 37.3% (target >= 95%)
+- ⚠️ animals\chicken_summer.png: Palette match is 17.8% (target >= 95%)
+- ⚠️ animals\chicken_winter.png: Palette match is 22.5% (target >= 95%)
+- ⚠️ animals\sheep_summer.png: Palette match is 26.8% (target >= 95%)
+- ⚠️ animals\sheep_winter.png: Palette match is 26.1% (target >= 95%)
+- ⚠️ background\village_winter_day_480x270.png: Palette match is 29.1% (target >= 95%)
+- ⚠️ background\village_winter_dusk_480x270.png: Palette match is 15.4% (target >= 95%)
+- ⚠️ background\village_winter_morning_480x270.png: Palette match is 24.2% (target >= 95%)
+- ⚠️ background\village_winter_night_480x270.png: Palette match is 60.2% (target >= 95%)
+- ⚠️ buildings\blacksmith_forge_summer.png: Palette match is 31.0% (target >= 95%)
+- ⚠️ buildings\blacksmith_forge_winter.png: Palette match is 35.0% (target >= 95%)
+- ⚠️ buildings\cottage_moss_roof_summer.png: Palette match is 22.9% (target >= 95%)
+- ⚠️ buildings\cottage_moss_roof_winter.png: Palette match is 36.8% (target >= 95%)
+- ⚠️ buildings\cottage_tile_roof_summer.png: Palette match is 24.1% (target >= 95%)
+- ⚠️ buildings\cottage_tile_roof_winter.png: Palette match is 38.9% (target >= 95%)
+- ⚠️ buildings\cottage_wood_shingle_summer.png: Palette match is 33.5% (target >= 95%)
+- ⚠️ buildings\cottage_wood_shingle_winter.png: Palette match is 38.0% (target >= 95%)
+- ⚠️ buildings\market_stall_summer.png: Palette match is 30.8% (target >= 95%)
+- ⚠️ buildings\market_stall_winter.png: Palette match is 32.6% (target >= 95%)
+- ⚠️ props\anvil_hammer_summer.png: Palette match is 19.2% (target >= 95%)
+- ⚠️ props\anvil_hammer_winter.png: Palette match is 21.5% (target >= 95%)
+- ⚠️ props\campfire_ring_summer.png: Palette match is 23.5% (target >= 95%)
+- ⚠️ props\campfire_ring_winter.png: Palette match is 20.8% (target >= 95%)
+- ⚠️ props\cooking_cauldron_tripod_summer.png: Palette match is 30.4% (target >= 95%)
+- ⚠️ props\cooking_cauldron_tripod_winter.png: Palette match is 27.1% (target >= 95%)
+- ⚠️ props\feast_table_summer.png: Palette match is 34.7% (target >= 95%)
+- ⚠️ props\feast_table_winter.png: Palette match is 28.7% (target >= 95%)
+- ⚠️ props\firewood_stack_summer.png: Palette match is 38.5% (target >= 95%)
+- ⚠️ props\firewood_stack_winter.png: Palette match is 38.6% (target >= 95%)
+- ⚠️ props\flower_pots_summer.png: Palette match is 15.8% (target >= 95%)
+- ⚠️ props\flower_pots_winter.png: Palette match is 24.3% (target >= 95%)
+- ⚠️ props\forge_oven_summer.png: Palette match is 35.9% (target >= 95%)
+- ⚠️ props\forge_oven_winter.png: Palette match is 28.9% (target >= 95%)
+- ⚠️ props\signpost_lantern_summer.png: Palette match is 38.5% (target >= 95%)
+- ⚠️ props\signpost_lantern_winter.png: Palette match is 33.1% (target >= 95%)
+- ⚠️ props\water_well_summer.png: Palette match is 31.2% (target >= 95%)
+- ⚠️ props\water_well_winter.png: Palette match is 31.9% (target >= 95%)
+- ⚠️ props\wooden_barrels_summer.png: Palette match is 37.0% (target >= 95%)
+- ⚠️ props\wooden_barrels_winter.png: Palette match is 36.2% (target >= 95%)
+- ⚠️ characters\blacksmith_elder\blacksmith_elder_idle_4f_32x48.png: Palette match is 50.1% (target >= 95%)
+- ⚠️ characters\blacksmith_elder\blacksmith_elder_walk_6f_32x48.png: Palette match is 50.1% (target >= 95%)
+- ⚠️ characters\blacksmith_elder_summer\blacksmith_elder_summer_idle_4f_32x48.png: Character appears to face LEFT instead of RIGHT.
+- ⚠️ characters\blacksmith_elder_summer\blacksmith_elder_summer_idle_4f_32x48.png: Palette match is 46.0% (target >= 95%)
+- ⚠️ characters\blacksmith_elder_summer\blacksmith_elder_summer_walk_6f_32x48.png: Character appears to face LEFT instead of RIGHT.
+- ⚠️ characters\blacksmith_elder_summer\blacksmith_elder_summer_walk_6f_32x48.png: Palette match is 46.0% (target >= 95%)
+- ⚠️ characters\child\child_idle_4f_32x48.png: Palette match is 26.9% (target >= 95%)
+- ⚠️ characters\child\child_walk_6f_32x48.png: Palette match is 27.0% (target >= 95%)
+- ⚠️ characters\child_boy_blue\child_boy_blue_idle_4f_32x48.png: Palette match is 26.9% (target >= 95%)
+- ⚠️ characters\child_boy_blue\child_boy_blue_walk_6f_32x48.png: Palette match is 27.0% (target >= 95%)
+- ⚠️ characters\child_boy_blue_summer\child_boy_blue_summer_idle_4f_32x48.png: Palette match is 33.2% (target >= 95%)
+- ⚠️ characters\child_boy_blue_summer\child_boy_blue_summer_walk_6f_32x48.png: Palette match is 33.3% (target >= 95%)
+- ⚠️ characters\child_boy_yellow\child_boy_yellow_idle_4f_32x48.png: Palette match is 37.5% (target >= 95%)
+- ⚠️ characters\child_boy_yellow\child_boy_yellow_walk_6f_32x48.png: Palette match is 37.6% (target >= 95%)
+- ⚠️ characters\child_boy_yellow_summer\child_boy_yellow_summer_idle_4f_32x48.png: Palette match is 43.6% (target >= 95%)
+- ⚠️ characters\child_boy_yellow_summer\child_boy_yellow_summer_walk_6f_32x48.png: Palette match is 43.7% (target >= 95%)
+- ⚠️ characters\drummer\drummer_drum_4f_32x48.png: Palette match is 34.8% (target >= 95%)
+- ⚠️ characters\drummer\drummer_idle_4f_32x48.png: Palette match is 34.6% (target >= 95%)
+- ⚠️ characters\drummer\drummer_walk_6f_32x48.png: Palette match is 34.7% (target >= 95%)
+- ⚠️ characters\elder\elder_idle_4f_32x48.png: Palette match is 50.1% (target >= 95%)
+- ⚠️ characters\elder\elder_walk_6f_32x48.png: Palette match is 50.1% (target >= 95%)
+- ⚠️ characters\farmer_man\farmer_man_farm_4f_32x48.png: Palette match is 49.4% (target >= 95%)
+- ⚠️ characters\farmer_man\farmer_man_idle_4f_32x48.png: Palette match is 50.1% (target >= 95%)
+- ⚠️ characters\farmer_man\farmer_man_walk_6f_32x48.png: Palette match is 50.1% (target >= 95%)
+- ⚠️ characters\farmer_woman\farmer_woman_carry_idle_4f_32x48.png: Character appears to face LEFT instead of RIGHT.
+- ⚠️ characters\farmer_woman\farmer_woman_carry_idle_4f_32x48.png: Palette match is 37.9% (target >= 95%)
+- ⚠️ characters\farmer_woman\farmer_woman_carry_walk_6f_32x48.png: Character appears to face LEFT instead of RIGHT.
+- ⚠️ characters\farmer_woman\farmer_woman_carry_walk_6f_32x48.png: Palette match is 38.0% (target >= 95%)
+- ⚠️ characters\farmer_woman\farmer_woman_idle_4f_32x48.png: Character appears to face LEFT instead of RIGHT.
+- ⚠️ characters\farmer_woman\farmer_woman_idle_4f_32x48.png: Palette match is 37.9% (target >= 95%)
+- ⚠️ characters\farmer_woman\farmer_woman_walk_6f_32x48.png: Character appears to face LEFT instead of RIGHT.
+- ⚠️ characters\farmer_woman\farmer_woman_walk_6f_32x48.png: Palette match is 38.0% (target >= 95%)
+- ⚠️ characters\farmer_woman_summer\farmer_woman_summer_idle_4f_32x48.png: Palette match is 39.3% (target >= 95%)
+- ⚠️ characters\farmer_woman_summer\farmer_woman_summer_walk_6f_32x48.png: Palette match is 39.2% (target >= 95%)
+- ⚠️ characters\fisherman\fisherman_idle_4f_32x48.png: Palette match is 34.6% (target >= 95%)
+- ⚠️ characters\fisherman\fisherman_walk_6f_32x48.png: Palette match is 34.7% (target >= 95%)
+- ⚠️ characters\grandmother\grandmother_idle_4f_32x48.png: Palette match is 20.8% (target >= 95%)
+- ⚠️ characters\grandmother\grandmother_walk_6f_32x48.png: Palette match is 20.9% (target >= 95%)
+- ⚠️ characters\grandmother_summer\grandmother_summer_idle_4f_32x48.png: Palette match is 28.6% (target >= 95%)
+- ⚠️ characters\grandmother_summer\grandmother_summer_walk_6f_32x48.png: Palette match is 28.7% (target >= 95%)
+- ⚠️ characters\guard\guard_alert_2f_32x48.png: Palette match is 37.9% (target >= 95%)
+- ⚠️ characters\guard\guard_catch_4f_32x48.png: Palette match is 37.9% (target >= 95%)
+- ⚠️ characters\guard\guard_escort_6f_32x48.png: Palette match is 37.7% (target >= 95%)
+- ⚠️ characters\guard\guard_frustrated_3f_32x48.png: Palette match is 37.3% (target >= 95%)
+- ⚠️ characters\guard\guard_idle_4f_32x48.png: Palette match is 37.7% (target >= 95%)
+- ⚠️ characters\guard\guard_patrol_6f_32x48.png: Palette match is 37.7% (target >= 95%)
+- ⚠️ characters\guard\guard_run_6f_32x48.png: Palette match is 37.7% (target >= 95%)
+- ⚠️ characters\guard\guard_shout_2f_32x48.png: Palette match is 37.9% (target >= 95%)
+- ⚠️ characters\merchant\merchant_idle_4f_32x48.png: Palette match is 30.3% (target >= 95%)
+- ⚠️ characters\merchant\merchant_trade_4f_32x48.png: Palette match is 30.4% (target >= 95%)
+- ⚠️ characters\merchant\merchant_walk_6f_32x48.png: Palette match is 30.3% (target >= 95%)
+- ⚠️ characters\merchant_woman\merchant_woman_idle_4f_32x48.png: Palette match is 30.3% (target >= 95%)
+- ⚠️ characters\merchant_woman\merchant_woman_walk_6f_32x48.png: Palette match is 30.3% (target >= 95%)
+- ⚠️ characters\merchant_woman_summer\merchant_woman_summer_idle_4f_32x48.png: Palette match is 33.3% (target >= 95%)
+- ⚠️ characters\merchant_woman_summer\merchant_woman_summer_walk_6f_32x48.png: Palette match is 33.3% (target >= 95%)
+- ⚠️ characters\priest\priest_idle_4f_32x48.png: Palette match is 34.6% (target >= 95%)
+- ⚠️ characters\priest\priest_walk_6f_32x48.png: Palette match is 34.7% (target >= 95%)
+- ⚠️ characters\thief\thief_captured_2f_32x48.png: Palette match is 1.8% (target >= 95%)
+- ⚠️ characters\thief\thief_escape_4f_32x48.png: Palette match is 1.7% (target >= 95%)
+- ⚠️ characters\thief\thief_hide_2f_32x48.png: Palette match is 1.8% (target >= 95%)
+- ⚠️ characters\thief\thief_rob_6f_32x48.png: Palette match is 1.7% (target >= 95%)
+- ⚠️ characters\thief\thief_run_6f_32x48.png: Palette match is 1.7% (target >= 95%)
+- ⚠️ characters\thief\thief_sneak_6f_32x48.png: Palette match is 1.8% (target >= 95%)
+- ⚠️ characters\villager_hunter\villager_hunter_idle_4f_32x48.png: Palette match is 34.6% (target >= 95%)
+- ⚠️ characters\villager_hunter\villager_hunter_walk_6f_32x48.png: Palette match is 34.7% (target >= 95%)
+- ⚠️ characters\villager_hunter_summer\villager_hunter_summer_idle_4f_32x48.png: Palette match is 51.8% (target >= 95%)
+- ⚠️ characters\villager_hunter_summer\villager_hunter_summer_walk_6f_32x48.png: Palette match is 51.8% (target >= 95%)
