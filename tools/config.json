@@ -1,0 +1,9 @@
+{
+  "base_resolution": [480, 270],
+  "character_size": [32, 48],
+  "palette_colors": 32,
+  "qa_threshold": 70.0,
+  "palette_match_threshold": 0.90,
+  "sim_test_target_capture_min": 0.35,
+  "sim_test_target_capture_max": 0.65
+}
